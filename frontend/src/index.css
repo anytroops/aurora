@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0b0d10;
+  --color-panel: #12151a;
+  --color-edge: #232830;
+  --color-accent: #7dd3a8;
+  --color-warn: #e8b45a;
+  --color-alert: #e87a6a;
+  --font-display: "Avenir Next", "Futura", "Gill Sans", sans-serif;
+}
+
+body {
+  background: var(--color-ink);
+  color: #d8dde4;
+}

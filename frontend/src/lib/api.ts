@@ -1,0 +1,57 @@
+import type { DawProject, Finding, TrackMetrics } from "../types";
+
+async function readError(res: Response): Promise<string> {
+  try {
+    const body = await res.json();
+    return body.detail ?? res.statusText;
+  } catch {
+    return res.statusText;
+  }
+}
+
+export async function analyzeFile(
+  file: File,
+): Promise<{ metrics: TrackMetrics; findings: Finding[] }> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/api/analyze", { method: "POST", body: form });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function analyzeProject(file: File): Promise<DawProject> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/api/project", { method: "POST", body: form });
+  if (!res.ok) throw new Error(await readError(res));
+  const body = await res.json();
+  return body.project;
+}
+
+export async function askQuestion(
+  question: string,
+  project: DawProject | null,
+  tracks: { metrics: TrackMetrics; findings: Finding[] }[],
+): Promise<string> {
+  const res = await fetch("/api/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, project, tracks }),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  const body = await res.json();
+  return body.answer;
+}
+
+export async function getFeedback(
+  tracks: { metrics: TrackMetrics; findings: Finding[] }[],
+): Promise<string> {
+  const res = await fetch("/api/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tracks }),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  const body = await res.json();
+  return body.feedback;
+}
