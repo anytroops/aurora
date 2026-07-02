@@ -3,6 +3,7 @@ import ChatPanel from "./components/ChatPanel";
 import ComparePanel from "./components/ComparePanel";
 import FeedbackPanel from "./components/FeedbackPanel";
 import ProjectPanel from "./components/ProjectPanel";
+import SamplePanel from "./components/SamplePanel";
 import TrackCard from "./components/TrackCard";
 import UploadZone from "./components/UploadZone";
 import { analyzeFile, analyzeProject, askQuestion, getFeedback } from "./lib/api";
@@ -132,6 +133,8 @@ export default function App() {
         {tracks.map((t) => (
           <TrackCard key={t.id} track={t} />
         ))}
+
+        <SamplePanel />
 
         {tracks.length >= 2 && <ComparePanel tracks={tracks} />}
 

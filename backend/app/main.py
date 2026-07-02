@@ -9,6 +9,7 @@ from .ai import ask_project, get_mix_feedback
 from .analysis import analyze_audio
 from .daw import parse_project
 from .findings import derive_findings
+from .samples import sample_features
 
 app = FastAPI(title="Aurora", version="0.2.0")
 
@@ -87,6 +88,20 @@ async def project(file: UploadFile) -> dict:
     except Exception:
         raise HTTPException(
             status_code=422, detail=f"Could not parse '{file.filename}'."
+        )
+
+
+@app.post("/api/sample")
+async def sample(file: UploadFile) -> dict:
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file.")
+    try:
+        return {"sample": sample_features(data, file.filename or "sample")}
+    except Exception:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Could not decode '{file.filename}' as audio.",
         )
 
 
