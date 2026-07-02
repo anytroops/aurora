@@ -24,6 +24,12 @@ supported by the measurements. Structure your response as:
    or target value).
 3. Anything that looks intentional/fine that the producer shouldn't "fix".
 
+Tracks may also include arrangement data: detected sections with energy
+levels, and lift/breakdown transitions over time. When present, also assess
+the energy arc — whether transitions create contrast, whether sustained
+high-energy stretches risk listener fatigue, and whether quiet sections earn
+the next lift. Tie these observations to the section timestamps.
+
 Be direct and practical. If measurements are ambiguous, say what to check in
 the session rather than guessing.\
 """

@@ -29,7 +29,7 @@ export default function App() {
     setUploadError(null);
     for (const file of files) {
       try {
-        const { metrics, findings } = await analyzeFile(file);
+        const { metrics, findings, arrangement } = await analyzeFile(file);
         setTracks((prev) => [
           ...prev,
           {
@@ -38,6 +38,7 @@ export default function App() {
             url: URL.createObjectURL(file),
             metrics,
             findings,
+            arrangement,
           },
         ]);
       } catch (e) {
@@ -59,15 +60,23 @@ export default function App() {
     }
   };
 
+  // Full energy curves are for rendering; the AI gets the section/transition
+  // summary to keep the prompt compact.
+  const aiTracks = () =>
+    tracks.map(({ metrics, findings, arrangement }) => ({
+      metrics,
+      findings,
+      arrangement: {
+        sections: arrangement.sections,
+        transitions: arrangement.transitions,
+      },
+    }));
+
   const handleFeedback = async () => {
     setFeedbackLoading(true);
     setFeedbackError(null);
     try {
-      setFeedback(
-        await getFeedback(
-          tracks.map(({ metrics, findings }) => ({ metrics, findings })),
-        ),
-      );
+      setFeedback(await getFeedback(aiTracks()));
     } catch (e) {
       setFeedbackError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -79,11 +88,7 @@ export default function App() {
     setChatLoading(true);
     setChatError(null);
     try {
-      const answer = await askQuestion(
-        question,
-        project,
-        tracks.map(({ metrics, findings }) => ({ metrics, findings })),
-      );
+      const answer = await askQuestion(question, project, aiTracks());
       setChat((prev) => [...prev, { question, answer }]);
     } catch (e) {
       setChatError(e instanceof Error ? e.message : String(e));

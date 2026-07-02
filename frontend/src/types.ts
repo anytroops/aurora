@@ -55,10 +55,35 @@ export interface ChatEntry {
   answer: string;
 }
 
+export interface EnergyPoint {
+  t: number;
+  db: number;
+}
+
+export interface Section {
+  start: number;
+  end: number;
+  energy_db: number;
+  level: "low" | "mid" | "high";
+}
+
+export interface Transition {
+  t: number;
+  delta_db: number;
+  kind: "lift" | "breakdown";
+}
+
+export interface Arrangement {
+  energy_curve: EnergyPoint[];
+  sections: Section[];
+  transitions: Transition[];
+}
+
 export interface TrackAnalysis {
   id: string;
   name: string;
   url: string; // object URL for waveform rendering
   metrics: TrackMetrics;
   findings: Finding[];
+  arrangement: Arrangement;
 }
