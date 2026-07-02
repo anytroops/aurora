@@ -1,5 +1,6 @@
 import type {
   Arrangement,
+  ChainReview,
   DawProject,
   Finding,
   Section,
@@ -65,6 +66,19 @@ export async function analyzeSample(
   if (!res.ok) throw new Error(await readError(res));
   const body = await res.json();
   return body.sample;
+}
+
+export async function reviewPlugins(
+  project: DawProject,
+  tracks: AiTrackPayload[],
+): Promise<ChainReview> {
+  const res = await fetch("/api/plugin-review", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project, tracks }),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
 }
 
 export async function getFeedback(tracks: AiTrackPayload[]): Promise<string> {
