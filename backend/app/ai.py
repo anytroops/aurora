@@ -76,6 +76,53 @@ def ask_project(question: str, project: dict | None, tracks: list[dict]) -> str:
     return "".join(block.text for block in message.content if block.type == "text")
 
 
+PLUGIN_SYSTEM = """\
+You are a senior mix engineer reviewing the processing chains of a DAW
+session. You are given each track's device chain in order (device names with
+inferred categories: eq, compressor, limiter, reverb, saturation, synth,
+etc.), rule-based chain findings already flagged, and — when available — DSP
+measurements of bounced audio (LUFS, crest factor, spectral balance, ...).
+
+You have device names and order, NOT parameter values. Be honest about that
+boundary: reason from what the chain implies (intent, ordering risks,
+redundancy) and from the measurements; never invent knob settings. Where a
+measurement implicates a chain (e.g. crest factor of 4 dB on a track running
+two compressors into a limiter), connect them explicitly.
+
+Structure the review per track: one line on what the chain is apparently
+doing, then anything worth changing, with a concrete starting move. End with
+the two or three highest-impact changes across the whole session. If a chain
+looks deliberate and fine, say so and move on — don't manufacture problems.\
+"""
+
+
+def review_chains(
+    chains: list[dict], chain_findings: list[dict], tracks: list[dict]
+) -> str:
+    client = Anthropic()
+    payload: dict = {"chains": chains, "chain_findings": chain_findings}
+    if tracks:
+        payload["audio_analysis"] = tracks
+    with client.messages.stream(
+        model=MODEL,
+        max_tokens=3000,
+        thinking={"type": "adaptive"},
+        system=PLUGIN_SYSTEM,
+        messages=[
+            {
+                "role": "user",
+                "content": (
+                    "Session processing chains and context:\n\n"
+                    f"{json.dumps(payload, indent=2)}\n\n"
+                    "Review the processing."
+                ),
+            }
+        ],
+    ) as stream:
+        message = stream.get_final_message()
+    return "".join(block.text for block in message.content if block.type == "text")
+
+
 def get_mix_feedback(tracks: list[dict]) -> str:
     client = Anthropic()  # resolves ANTHROPIC_API_KEY or an `ant auth login` profile
     payload = json.dumps(tracks, indent=2)

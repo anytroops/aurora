@@ -55,6 +55,18 @@ export interface ChatEntry {
   answer: string;
 }
 
+export interface DeviceInfo {
+  name: string;
+  category: string;
+}
+
+export interface ChainReview {
+  chains: { track: string; type: string; devices: DeviceInfo[] }[];
+  findings: Finding[];
+  review: string | null;
+  review_error: string | null;
+}
+
 export interface EnergyPoint {
   t: number;
   db: number;

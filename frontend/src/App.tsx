@@ -6,8 +6,14 @@ import ProjectPanel from "./components/ProjectPanel";
 import SamplePanel from "./components/SamplePanel";
 import TrackCard from "./components/TrackCard";
 import UploadZone from "./components/UploadZone";
-import { analyzeFile, analyzeProject, askQuestion, getFeedback } from "./lib/api";
-import type { ChatEntry, DawProject, TrackAnalysis } from "./types";
+import {
+  analyzeFile,
+  analyzeProject,
+  askQuestion,
+  getFeedback,
+  reviewPlugins,
+} from "./lib/api";
+import type { ChainReview, ChatEntry, DawProject, TrackAnalysis } from "./types";
 
 export default function App() {
   const [tracks, setTracks] = useState<TrackAnalysis[]>([]);
@@ -17,6 +23,10 @@ export default function App() {
   const [project, setProject] = useState<DawProject | null>(null);
   const [projectBusy, setProjectBusy] = useState(false);
   const [projectError, setProjectError] = useState<string | null>(null);
+
+  const [review, setReview] = useState<ChainReview | null>(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const [feedback, setFeedback] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
@@ -55,10 +65,25 @@ export default function App() {
     setProjectError(null);
     try {
       setProject(await analyzeProject(file));
+      setReview(null);
+      setReviewError(null);
     } catch (e) {
       setProjectError(e instanceof Error ? e.message : String(e));
     } finally {
       setProjectBusy(false);
+    }
+  };
+
+  const handleReview = async () => {
+    if (!project) return;
+    setReviewLoading(true);
+    setReviewError(null);
+    try {
+      setReview(await reviewPlugins(project, aiTracks()));
+    } catch (e) {
+      setReviewError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReviewLoading(false);
     }
   };
 
@@ -128,6 +153,10 @@ export default function App() {
           onFile={handleProjectFile}
           busy={projectBusy}
           error={projectError}
+          onReview={handleReview}
+          review={review}
+          reviewLoading={reviewLoading}
+          reviewError={reviewError}
         />
 
         {tracks.map((t) => (

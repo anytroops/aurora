@@ -5,10 +5,11 @@ from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .ai import ask_project, get_mix_feedback
+from .ai import ask_project, get_mix_feedback, review_chains
 from .analysis import analyze_audio
 from .daw import parse_project
 from .findings import derive_findings
+from .plugins import categorized_chains, derive_chain_findings
 from .samples import sample_features
 
 app = FastAPI(title="Aurora", version="0.2.0")
@@ -28,6 +29,11 @@ class FeedbackRequest(BaseModel):
 class AskRequest(BaseModel):
     question: str
     project: dict | None = None
+    tracks: list[dict] = []
+
+
+class PluginReviewRequest(BaseModel):
+    project: dict
     tracks: list[dict] = []
 
 
@@ -103,6 +109,38 @@ async def sample(file: UploadFile) -> dict:
             status_code=422,
             detail=f"Could not decode '{file.filename}' as audio.",
         )
+
+
+@app.post("/api/plugin-review")
+def plugin_review(body: PluginReviewRequest) -> dict:
+    if not body.project.get("tracks"):
+        raise HTTPException(status_code=400, detail="Project has no tracks.")
+    chains = categorized_chains(body.project)
+    findings = derive_chain_findings(body.project)
+
+    # Rule-based results always ship; the AI layer degrades to an error note.
+    review = None
+    review_error = None
+    try:
+        review = review_chains(chains, findings, body.tracks)
+    except (anthropic.AuthenticationError, TypeError):
+        review_error = (
+            "No Anthropic API credentials configured. Set ANTHROPIC_API_KEY "
+            "(or run `ant auth login`) and restart the backend."
+        )
+    except anthropic.RateLimitError:
+        review_error = "Rate limited — try again shortly."
+    except anthropic.APIStatusError as e:
+        review_error = f"Claude API error: {e.message}"
+    except anthropic.APIConnectionError:
+        review_error = "Could not reach the Claude API."
+
+    return {
+        "chains": chains,
+        "findings": findings,
+        "review": review,
+        "review_error": review_error,
+    }
 
 
 @app.post("/api/feedback")

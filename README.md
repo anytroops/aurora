@@ -25,6 +25,12 @@ Drop in audio stems or a full mix and get:
 8. **Sample intelligence**: timbre fingerprints (MFCC statistics + spectral
    shape) with cosine-similarity search — pick a sample, find its closest
    matches in your library.
+9. **Plugin intelligence**: devices are categorized by role (EQ, compressor,
+   limiter, reverb, …) from a name-pattern knowledge base; rule-based chain
+   findings (processing after the limiter, stacked compressors, reverb-as-
+   insert sprawl, unprocessed tracks) work without an API key, and Claude
+   reviews each chain's intent against the measured audio when credentials
+   are configured.
 
 This is a deliberately scoped-down MVP of a much larger "AI studio OS" concept —
 the slice that actually runs end to end.
