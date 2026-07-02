@@ -1,4 +1,17 @@
-import type { DawProject, Finding, TrackMetrics } from "../types";
+import type {
+  Arrangement,
+  DawProject,
+  Finding,
+  Section,
+  TrackMetrics,
+  Transition,
+} from "../types";
+
+export interface AiTrackPayload {
+  metrics: TrackMetrics;
+  findings: Finding[];
+  arrangement?: { sections: Section[]; transitions: Transition[] };
+}
 
 async function readError(res: Response): Promise<string> {
   try {
@@ -11,7 +24,7 @@ async function readError(res: Response): Promise<string> {
 
 export async function analyzeFile(
   file: File,
-): Promise<{ metrics: TrackMetrics; findings: Finding[] }> {
+): Promise<{ metrics: TrackMetrics; findings: Finding[]; arrangement: Arrangement }> {
   const form = new FormData();
   form.append("file", file);
   const res = await fetch("/api/analyze", { method: "POST", body: form });
@@ -31,7 +44,7 @@ export async function analyzeProject(file: File): Promise<DawProject> {
 export async function askQuestion(
   question: string,
   project: DawProject | null,
-  tracks: { metrics: TrackMetrics; findings: Finding[] }[],
+  tracks: AiTrackPayload[],
 ): Promise<string> {
   const res = await fetch("/api/ask", {
     method: "POST",
@@ -43,9 +56,7 @@ export async function askQuestion(
   return body.answer;
 }
 
-export async function getFeedback(
-  tracks: { metrics: TrackMetrics; findings: Finding[] }[],
-): Promise<string> {
+export async function getFeedback(tracks: AiTrackPayload[]): Promise<string> {
   const res = await fetch("/api/feedback", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

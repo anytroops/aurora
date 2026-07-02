@@ -1,4 +1,5 @@
 import type { TrackAnalysis } from "../types";
+import EnergyTimeline from "./EnergyTimeline";
 import Waveform from "./Waveform";
 
 const BAND_LABELS: [keyof TrackAnalysis["metrics"]["spectral_balance_pct"], string][] = [
@@ -79,6 +80,11 @@ export default function TrackCard({ track }: { track: TrackAnalysis }) {
           })}
         </div>
       </div>
+
+      <EnergyTimeline
+        arrangement={track.arrangement}
+        duration={m.duration_s}
+      />
 
       {track.findings.length > 0 && (
         <div className="mt-3 space-y-1.5">

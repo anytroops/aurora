@@ -62,13 +62,17 @@ async def analyze(file: UploadFile) -> dict:
     if not data:
         raise HTTPException(status_code=400, detail="Empty file.")
     try:
-        metrics = analyze_audio(data, file.filename or "upload")
+        metrics, arrangement = analyze_audio(data, file.filename or "upload")
     except Exception:
         raise HTTPException(
             status_code=422,
             detail=f"Could not decode '{file.filename}' as audio.",
         )
-    return {"metrics": metrics, "findings": derive_findings(metrics)}
+    return {
+        "metrics": metrics,
+        "findings": derive_findings(metrics),
+        "arrangement": arrangement,
+    }
 
 
 @app.post("/api/project")

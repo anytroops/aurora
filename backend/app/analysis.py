@@ -9,6 +9,8 @@ import numpy as np
 import pyloudnorm
 import soundfile as sf
 
+from .arrangement import analyze_arrangement
+
 # Band edges in Hz; "high" runs to Nyquist
 BANDS = [
     ("sub", 20, 60),
@@ -72,7 +74,8 @@ def _estimate_tempo(y: np.ndarray, sr: int) -> float | None:
         return None
 
 
-def analyze_audio(data: bytes, filename: str) -> dict:
+def analyze_audio(data: bytes, filename: str) -> tuple[dict, dict]:
+    """Return (metrics, arrangement) for the given audio file."""
     y, sr = _load(data, filename)
     n_samples, n_channels = y.shape
     duration = n_samples / sr
@@ -134,7 +137,7 @@ def analyze_audio(data: bytes, filename: str) -> dict:
     frame_rms = librosa.feature.rms(y=mono)[0]
     noise_floor_db = round(_db(float(np.percentile(frame_rms, 10))), 2)
 
-    return {
+    metrics = {
         "filename": filename,
         "duration_s": round(duration, 3),
         "sample_rate": sr,
@@ -153,3 +156,4 @@ def analyze_audio(data: bytes, filename: str) -> dict:
         "tempo_bpm": _estimate_tempo(mono, sr),
         "key_estimate": _estimate_key(mono, sr),
     }
+    return metrics, analyze_arrangement(mono, sr)
