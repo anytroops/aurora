@@ -56,6 +56,17 @@ export async function askQuestion(
   return body.answer;
 }
 
+export async function analyzeSample(
+  file: File,
+): Promise<{ filename: string; duration_s: number; vector: number[] }> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/api/sample", { method: "POST", body: form });
+  if (!res.ok) throw new Error(await readError(res));
+  const body = await res.json();
+  return body.sample;
+}
+
 export async function getFeedback(tracks: AiTrackPayload[]): Promise<string> {
   const res = await fetch("/api/feedback", {
     method: "POST",

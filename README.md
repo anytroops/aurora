@@ -17,6 +17,14 @@ Drop in audio stems or a full mix and get:
 5. **Project-aware chat**: ask questions ("which tracks have no processing?",
    "why does the low end feel crowded?") and Claude answers grounded in the
    parsed project structure and the DSP measurements together.
+6. **Arrangement analysis**: energy curve over time, MFCC-based section
+   detection, lift/breakdown transition markers — rendered as a timeline and
+   included in the AI feedback context.
+7. **Mix version comparison**: select two analyzed bounces and diff every
+   measurement (loudness, dynamics, stereo image, per-band balance).
+8. **Sample intelligence**: timbre fingerprints (MFCC statistics + spectral
+   shape) with cosine-similarity search — pick a sample, find its closest
+   matches in your library.
 
 This is a deliberately scoped-down MVP of a much larger "AI studio OS" concept —
 the slice that actually runs end to end.
