@@ -1,5 +1,6 @@
 import { useState } from "react";
 import ChatPanel from "./components/ChatPanel";
+import ComparePanel from "./components/ComparePanel";
 import FeedbackPanel from "./components/FeedbackPanel";
 import ProjectPanel from "./components/ProjectPanel";
 import TrackCard from "./components/TrackCard";
@@ -131,6 +132,8 @@ export default function App() {
         {tracks.map((t) => (
           <TrackCard key={t.id} track={t} />
         ))}
+
+        {tracks.length >= 2 && <ComparePanel tracks={tracks} />}
 
         {tracks.length > 0 && (
           <FeedbackPanel
