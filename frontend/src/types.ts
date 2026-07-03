@@ -60,6 +60,14 @@ export interface DeviceInfo {
   category: string;
 }
 
+export interface AgentResult {
+  agent: string;
+  label: string;
+  steps: { name: string; detail: string }[];
+  report: string | null;
+  report_error: string | null;
+}
+
 export interface ChainReview {
   chains: { track: string; type: string; devices: DeviceInfo[] }[];
   findings: Finding[];

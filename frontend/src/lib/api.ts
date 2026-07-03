@@ -1,4 +1,5 @@
 import type {
+  AgentResult,
   Arrangement,
   ChainReview,
   DawProject,
@@ -67,6 +68,20 @@ export async function analyzeSample(
   if (!res.ok) throw new Error(await readError(res));
   const body = await res.json();
   return body.sample;
+}
+
+export async function runAgent(
+  agent: string,
+  project: DawProject | null,
+  tracks: AiTrackPayload[],
+): Promise<AgentResult> {
+  const res = await fetch("/api/agent-run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ agent, project, tracks }),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
 }
 
 export async function reviewPlugins(
