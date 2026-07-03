@@ -14,6 +14,8 @@ import {
   getFeedback,
   reviewPlugins,
 } from "./lib/api";
+import CollabPanel from "./components/CollabPanel";
+import { useCollab } from "./lib/collab";
 import type { ChainReview, ChatEntry, DawProject, TrackAnalysis } from "./types";
 
 export default function App() {
@@ -37,23 +39,29 @@ export default function App() {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
 
+  const collab = useCollab({
+    onRemoteTrack: (t) =>
+      setTracks((prev) =>
+        prev.some((p) => p.id === t.id) ? prev : [...prev, { ...t, url: null }],
+      ),
+    onRemoteProject: (p) => setProject(p),
+  });
+
   const handleFiles = async (files: File[]) => {
     setAnalyzing(true);
     setUploadError(null);
     for (const file of files) {
       try {
         const { metrics, findings, arrangement } = await analyzeFile(file);
-        setTracks((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            name: file.name,
-            url: URL.createObjectURL(file),
-            metrics,
-            findings,
-            arrangement,
-          },
-        ]);
+        const track = {
+          id: crypto.randomUUID(),
+          name: file.name,
+          metrics,
+          findings,
+          arrangement,
+        };
+        setTracks((prev) => [...prev, { ...track, url: URL.createObjectURL(file) }]);
+        collab.announceTrack(track);
       } catch (e) {
         setUploadError(e instanceof Error ? e.message : String(e));
       }
@@ -65,7 +73,9 @@ export default function App() {
     setProjectBusy(true);
     setProjectError(null);
     try {
-      setProject(await analyzeProject(file));
+      const parsed = await analyzeProject(file);
+      setProject(parsed);
+      collab.announceProject(parsed);
       setReview(null);
       setReviewError(null);
     } catch (e) {
@@ -141,6 +151,14 @@ export default function App() {
       </header>
 
       <div className="space-y-4">
+        <CollabPanel
+          connected={collab.connected}
+          peers={collab.peers}
+          comments={collab.comments}
+          shareUrl={collab.shareUrl}
+          onComment={collab.sendComment}
+        />
+
         <UploadZone onFiles={handleFiles} busy={analyzing} />
 
         {uploadError && (

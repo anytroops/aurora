@@ -45,7 +45,13 @@ export default function TrackCard({ track }: { track: TrackAnalysis }) {
         </span>
       </div>
 
-      <Waveform url={track.url} />
+      {track.url ? (
+        <Waveform url={track.url} />
+      ) : (
+        <div className="rounded-md bg-black/30 px-3 py-2 text-xs text-gray-500">
+          Shared analysis from a collaborator — audio stays on their machine.
+        </div>
+      )}
 
       <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
         <Metric label="LUFS" value={m.lufs_integrated?.toFixed(1) ?? "—"} />

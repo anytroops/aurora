@@ -1,13 +1,14 @@
 from collections.abc import Callable
 
 import anthropic
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .agents import AGENT_SPECS, run_agent
 from .ai import ask_project, get_mix_feedback, review_chains
 from .analysis import analyze_audio
+from .collab import handle_session
 from .daw import parse_project
 from .findings import derive_findings
 from .plugins import categorized_chains, derive_chain_findings
@@ -69,6 +70,11 @@ def _call_ai(fn: Callable[[], dict]) -> dict:
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.websocket("/api/ws/{room_id}")
+async def collab_ws(websocket: WebSocket, room_id: str) -> None:
+    await handle_session(room_id, websocket)
 
 
 @app.post("/api/analyze")
