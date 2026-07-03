@@ -30,6 +30,7 @@ class AskRequest(BaseModel):
     question: str
     project: dict | None = None
     tracks: list[dict] = []
+    mode: str = "session"  # "session" | "dsp_code"
 
 
 class PluginReviewRequest(BaseModel):
@@ -154,11 +155,15 @@ def feedback(body: FeedbackRequest) -> dict:
 def ask(body: AskRequest) -> dict:
     if not body.question.strip():
         raise HTTPException(status_code=400, detail="Empty question.")
-    if body.project is None and not body.tracks:
+    if body.mode == "session" and body.project is None and not body.tracks:
         raise HTTPException(
             status_code=400,
             detail="Nothing to ask about yet — upload audio or a project file first.",
         )
     return _call_ai(
-        lambda: {"answer": ask_project(body.question, body.project, body.tracks)}
+        lambda: {
+            "answer": ask_project(
+                body.question, body.project, body.tracks, mode=body.mode
+            )
+        }
     )

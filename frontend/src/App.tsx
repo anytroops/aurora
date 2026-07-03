@@ -111,11 +111,11 @@ export default function App() {
     }
   };
 
-  const handleAsk = async (question: string) => {
+  const handleAsk = async (question: string, mode: "session" | "dsp_code") => {
     setChatLoading(true);
     setChatError(null);
     try {
-      const answer = await askQuestion(question, project, aiTracks());
+      const answer = await askQuestion(question, project, aiTracks(), mode);
       setChat((prev) => [...prev, { question, answer }]);
     } catch (e) {
       setChatError(e instanceof Error ? e.message : String(e));
@@ -177,14 +177,13 @@ export default function App() {
           />
         )}
 
-        {hasSessionData && (
-          <ChatPanel
-            onAsk={handleAsk}
-            entries={chat}
-            loading={chatLoading}
-            error={chatError}
-          />
-        )}
+        <ChatPanel
+          onAsk={handleAsk}
+          entries={chat}
+          loading={chatLoading}
+          error={chatError}
+          hasSessionData={hasSessionData}
+        />
       </div>
     </div>
   );

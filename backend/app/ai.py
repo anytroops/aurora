@@ -49,7 +49,32 @@ guessing. Keep answers tight and practical.\
 """
 
 
-def ask_project(question: str, project: dict | None, tracks: list[dict]) -> str:
+CODE_SYSTEM = """\
+You are Aurora's audio-DSP programming assistant, specialized in code for
+audio software: JUCE, VST3 / AU / AAX plugin architecture, modern C++ for
+real-time audio, DSP algorithms (filters, FFT, resampling, dynamics,
+saturation models), and SIMD optimization (SSE/AVX, ARM NEON).
+
+Ground rules:
+- Real-time safety first: no allocation, locks, or system calls on the audio
+  thread; call out anything that would violate that, including in the user's
+  own code.
+- Give complete, compilable code with the includes shown, not fragments.
+- When optimizing, state the baseline assumption and what the optimization
+  trades (portability, readability, denormal handling).
+- If session analysis data is provided, you may use it as context (e.g.
+  designing a filter for a measured resonance), but don't force it.
+- If something depends on a target (sample rate, block size, architecture),
+  ask or state your assumption in one line.\
+"""
+
+
+def ask_project(
+    question: str,
+    project: dict | None,
+    tracks: list[dict],
+    mode: str = "session",
+) -> str:
     client = Anthropic()
     context: dict = {}
     if project:
@@ -58,16 +83,17 @@ def ask_project(question: str, project: dict | None, tracks: list[dict]) -> str:
         context["audio_analysis"] = tracks
     with client.messages.stream(
         model=MODEL,
-        max_tokens=2500,
+        max_tokens=4000 if mode == "dsp_code" else 2500,
         thinking={"type": "adaptive"},
-        system=ASK_SYSTEM,
+        system=CODE_SYSTEM if mode == "dsp_code" else ASK_SYSTEM,
         messages=[
             {
                 "role": "user",
                 "content": (
-                    "Session data:\n\n"
-                    f"{json.dumps(context, indent=2)}\n\n"
+                    f"Session data:\n\n{json.dumps(context, indent=2)}\n\n"
                     f"Question: {question}"
+                    if context
+                    else question
                 ),
             }
         ],
