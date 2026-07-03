@@ -1,4 +1,5 @@
 import { useState } from "react";
+import AgentPanel from "./components/AgentPanel";
 import ChatPanel from "./components/ChatPanel";
 import ComparePanel from "./components/ComparePanel";
 import FeedbackPanel from "./components/FeedbackPanel";
@@ -176,6 +177,8 @@ export default function App() {
             disabled={tracks.length === 0}
           />
         )}
+
+        <AgentPanel tracks={aiTracks()} project={project} />
 
         <ChatPanel
           onAsk={handleAsk}

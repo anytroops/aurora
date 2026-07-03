@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from .agents import AGENT_SPECS, run_agent
 from .ai import ask_project, get_mix_feedback, review_chains
 from .analysis import analyze_audio
 from .daw import parse_project
@@ -35,6 +36,12 @@ class AskRequest(BaseModel):
 
 class PluginReviewRequest(BaseModel):
     project: dict
+    tracks: list[dict] = []
+
+
+class AgentRunRequest(BaseModel):
+    agent: str
+    project: dict | None = None
     tracks: list[dict] = []
 
 
@@ -110,6 +117,34 @@ async def sample(file: UploadFile) -> dict:
             status_code=422,
             detail=f"Could not decode '{file.filename}' as audio.",
         )
+
+
+@app.get("/api/agents")
+def list_agents() -> dict:
+    return {
+        "agents": [
+            {"id": agent_id, "label": spec["label"], "needs": spec["needs"]}
+            for agent_id, spec in AGENT_SPECS.items()
+        ]
+    }
+
+
+@app.post("/api/agent-run")
+def agent_run(body: AgentRunRequest) -> dict:
+    spec = AGENT_SPECS.get(body.agent)
+    if spec is None:
+        raise HTTPException(status_code=400, detail=f"Unknown agent '{body.agent}'.")
+    if spec["needs"] == "tracks" and not body.tracks:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{spec['label']} needs analyzed audio — upload a track first.",
+        )
+    if spec["needs"] == "project" and body.project is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{spec['label']} needs a parsed project — upload an .als/.rpp first.",
+        )
+    return run_agent(body.agent, body.tracks, body.project)
 
 
 @app.post("/api/plugin-review")
