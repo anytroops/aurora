@@ -31,6 +31,16 @@ Drop in audio stems or a full mix and get:
    insert sprawl, unprocessed tracks) work without an API key, and Claude
    reviews each chain's intent against the measured audio when credentials
    are configured.
+10. **DSP code assistant**: a chat mode specialized for audio software —
+    JUCE, VST3/AU plugin architecture, real-time-safe C++, SIMD (SSE/AVX,
+    ARM NEON).
+11. **Agents**: mixing, mastering, arrangement, and session-prep agents run
+    logged multi-step pipelines (gather → rule scan → brief → specialized AI
+    pass) that produce executable plans.
+12. **Session rooms (real-time collaboration)**: WebSocket rooms with a
+    shareable link — analyses, project structure, comments, and presence sync
+    live between everyone connected; audio itself never leaves each
+    collaborator's machine, and late joiners receive the full session state.
 
 This is a deliberately scoped-down MVP of a much larger "AI studio OS" concept —
 the slice that actually runs end to end.

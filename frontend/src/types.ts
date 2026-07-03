@@ -102,8 +102,15 @@ export interface Arrangement {
 export interface TrackAnalysis {
   id: string;
   name: string;
-  url: string; // object URL for waveform rendering
+  url: string | null; // object URL for waveform rendering; null for remote analyses
   metrics: TrackMetrics;
   findings: Finding[];
   arrangement: Arrangement;
+}
+
+export interface Comment {
+  id: string;
+  author: string;
+  text: string;
+  ts: number;
 }
