@@ -46,11 +46,12 @@ export async function askQuestion(
   question: string,
   project: DawProject | null,
   tracks: AiTrackPayload[],
+  mode: "session" | "dsp_code" = "session",
 ): Promise<string> {
   const res = await fetch("/api/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, project, tracks }),
+    body: JSON.stringify({ question, project, tracks, mode }),
   });
   if (!res.ok) throw new Error(await readError(res));
   const body = await res.json();
