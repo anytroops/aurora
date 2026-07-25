@@ -188,7 +188,6 @@ def capture() -> None:
 
         page.evaluate("window.scrollTo(0, 0)")
         page.wait_for_timeout(300)
-        page.screenshot(path=f"{OUT}/hero.png")
 
         for testid, name in (
             ("track-card", "analysis"),

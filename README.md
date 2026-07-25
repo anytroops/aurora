@@ -1,12 +1,14 @@
 # Aurora
 
+[![CI](https://github.com/anytroops/aurora/actions/workflows/ci.yml/badge.svg)](https://github.com/anytroops/aurora/actions/workflows/ci.yml)
+
 An AI-native analysis environment for music production. Drop in a mix, a set of
 stems, or your DAW project file and Aurora computes real engineering
 measurements, reads your session structure, and uses those numbers to ground
 AI feedback — instead of the generic mixing advice a language model gives when
 it can't actually hear anything.
 
-![Aurora](docs/screenshots/hero.png)
+![Aurora demo](docs/screenshots/demo.gif)
 
 ---
 
@@ -101,7 +103,7 @@ C++, and SIMD.
 | Backend | FastAPI (Python 3.13), WebSockets |
 | DSP | librosa, pyloudnorm, numpy, soundfile |
 | AI | Anthropic SDK (`claude-opus-4-8`) |
-| Tests | pytest (92 tests), Playwright for screenshot capture |
+| Tests | pytest (93 tests), Playwright for screenshots and the demo GIF |
 
 Aurora runs as two processes: a Vite dev server and a single FastAPI service
 that handles analysis, parsing, AI calls, and collaboration sockets.
@@ -162,7 +164,7 @@ cd backend
 .venv/bin/python -m pytest
 ```
 
-92 tests, no binary fixtures — every audio file and project file used in the
+93 tests, no binary fixtures — every audio file and project file used in the
 suite is synthesized at test time. Coverage is behavioral rather than
 line-oriented:
 
@@ -183,8 +185,34 @@ line-oriented:
   isolation, state replay for late joiners, and malformed messages that must
   not drop the socket.
 
-Screenshots in this README are captured by driving the real app in headless
-Chromium (`docs/` assets are regenerated, not hand-edited).
+Screenshots and the demo GIF in this README are captured by driving the real
+app in headless Chromium (`docs/capture_screenshots.py`, `docs/capture_demo.py`)
+— regenerated, not hand-edited.
+
+---
+
+## Performance note: keeping the event loop free
+
+The upload endpoints are `async def` because they `await` the request body, but
+the work they then do — librosa analysis of a full song — is CPU-bound and
+takes seconds. Left inline, that work runs *on the event loop* and blocks the
+entire server: every other request and all collaboration WebSocket traffic
+stalls behind it.
+
+Measured against a real 5-minute 44.1 kHz song, with `/api/health` polled
+concurrently:
+
+| | Health latency (worst) | Requests served during one analysis |
+| --- | --- | --- |
+| CPU work on the event loop | 2941 ms | 1 |
+| Offloaded via `asyncio.to_thread` | 3.6 ms | 82 |
+
+The fix is one line per endpoint, but the failure mode is invisible until you
+generate concurrent load — a single-user browser session never reveals it.
+`tests/test_concurrency.py` locks it in by asserting on *throughput* rather
+than latency: when the loop is blocked, a competing request never gets
+scheduled at all, so its own measured latency stays deceptively small while the
+server serves nothing.
 
 ---
 

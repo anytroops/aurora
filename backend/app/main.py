@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable
 
 import anthropic
@@ -83,7 +84,11 @@ async def analyze(file: UploadFile) -> dict:
     if not data:
         raise HTTPException(status_code=400, detail="Empty file.")
     try:
-        metrics, arrangement = analyze_audio(data, file.filename or "upload")
+        # librosa work is CPU-bound and takes seconds on a full song; run it off
+        # the event loop so concurrent requests and collab sockets keep flowing.
+        metrics, arrangement = await asyncio.to_thread(
+            analyze_audio, data, file.filename or "upload"
+        )
     except Exception:
         raise HTTPException(
             status_code=422,
@@ -102,7 +107,10 @@ async def project(file: UploadFile) -> dict:
     if not data:
         raise HTTPException(status_code=400, detail="Empty file.")
     try:
-        return {"project": parse_project(data, file.filename or "project")}
+        project = await asyncio.to_thread(
+            parse_project, data, file.filename or "project"
+        )
+        return {"project": project}
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception:
@@ -117,7 +125,10 @@ async def sample(file: UploadFile) -> dict:
     if not data:
         raise HTTPException(status_code=400, detail="Empty file.")
     try:
-        return {"sample": sample_features(data, file.filename or "sample")}
+        features = await asyncio.to_thread(
+            sample_features, data, file.filename or "sample"
+        )
+        return {"sample": features}
     except Exception:
         raise HTTPException(
             status_code=422,
