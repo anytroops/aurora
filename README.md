@@ -1,67 +1,137 @@
-# Aurora — AI Mix Analysis
+# Aurora
 
-Drop in audio stems or a full mix and get:
+An AI-native analysis environment for music production. Drop in a mix, a set of
+stems, or your DAW project file and Aurora computes real engineering
+measurements, reads your session structure, and uses those numbers to ground
+AI feedback — instead of the generic mixing advice a language model gives when
+it can't actually hear anything.
 
-1. **Real DSP measurements** computed server-side with librosa/pyloudnorm —
-   integrated LUFS, peak/RMS/crest factor, clipping detection, L/R correlation,
-   stereo width (side/mid ratio), spectral band balance, spectral centroid,
-   noise floor, tempo, and key estimate.
-2. **Rule-based engineering findings** derived deterministically from those
-   measurements (clipping, over-limiting, phase problems, low-mid mud, etc.) —
-   these work with no API key.
-3. **AI mix feedback**: the measurements are sent to Claude, which returns
-   prioritized, number-grounded engineering actions.
-4. **DAW project knowledge**: upload an Ableton Live set (`.als`) or REAPER
-   project (`.rpp`) and Aurora parses the session structure — tracks, built-in
-   devices and third-party plugins (VST/VST3/AU/CLAP/JS), clip counts, tempo.
-5. **Project-aware chat**: ask questions ("which tracks have no processing?",
-   "why does the low end feel crowded?") and Claude answers grounded in the
-   parsed project structure and the DSP measurements together.
-6. **Arrangement analysis**: energy curve over time, MFCC-based section
-   detection, lift/breakdown transition markers — rendered as a timeline and
-   included in the AI feedback context.
-7. **Mix version comparison**: select two analyzed bounces and diff every
-   measurement (loudness, dynamics, stereo image, per-band balance).
-8. **Sample intelligence**: timbre fingerprints (MFCC statistics + spectral
-   shape) with cosine-similarity search — pick a sample, find its closest
-   matches in your library.
-9. **Plugin intelligence**: devices are categorized by role (EQ, compressor,
-   limiter, reverb, …) from a name-pattern knowledge base; rule-based chain
-   findings (processing after the limiter, stacked compressors, reverb-as-
-   insert sprawl, unprocessed tracks) work without an API key, and Claude
-   reviews each chain's intent against the measured audio when credentials
-   are configured.
-10. **DSP code assistant**: a chat mode specialized for audio software —
-    JUCE, VST3/AU plugin architecture, real-time-safe C++, SIMD (SSE/AVX,
-    ARM NEON).
-11. **Agents**: mixing, mastering, arrangement, and session-prep agents run
-    logged multi-step pipelines (gather → rule scan → brief → specialized AI
-    pass) that produce executable plans.
-12. **Session rooms (real-time collaboration)**: WebSocket rooms with a
-    shareable link — analyses, project structure, comments, and presence sync
-    live between everyone connected; audio itself never leaves each
-    collaborator's machine, and late joiners receive the full session state.
+![Aurora](docs/screenshots/hero.png)
 
-This is a deliberately scoped-down MVP of a much larger "AI studio OS" concept —
-the slice that actually runs end to end.
+---
+
+## What it does
+
+### Engineering-grade DSP analysis
+
+Every uploaded file is measured server-side with `librosa` and `pyloudnorm`:
+integrated loudness (LUFS), true peak, RMS, crest factor, sample-accurate
+clipping detection, L/R correlation, stereo width, six-band spectral balance,
+spectral centroid, noise floor, tempo, and key.
+
+Those measurements feed a rule engine that produces **deterministic findings** —
+clipping, over-limiting, phase problems, low-mid buildup, dark top end. These
+require no API key and no model call, so the tool is useful offline and the AI
+layer has something factual to reason about.
+
+![Track analysis](docs/screenshots/analysis.png)
+
+### Arrangement analysis
+
+MFCC-based agglomerative segmentation splits the track into sections, each
+scored by energy, with lift and breakdown transitions detected at the
+boundaries. In the shot above, the four 15-second blocks of the test track are
+recovered exactly, along with a +15.3 dB lift, a −33 dB breakdown, and a
++33.2 dB lift.
+
+### DAW project knowledge
+
+Upload an Ableton Live set (`.als`, gzipped XML) or a REAPER project (`.rpp`,
+plain text) and Aurora parses the session: tracks and their types, clip counts,
+tempo, and every device in every chain — built-in devices by display name,
+third-party plugins across VST / VST3 / AU / CLAP / JS.
+
+### Plugin intelligence
+
+Each device is categorized by role, then chains are checked for structural
+problems: processing after a limiter, stacked compressors, reverb used as an
+insert across many tracks instead of a send, tracks with clips but no
+processing. Device chips are color-coded by role.
+
+![Project chains](docs/screenshots/project-chains.png)
+
+### Version comparison
+
+Analyze two bounces and diff every measurement to see exactly what a revision
+changed.
+
+![Version comparison](docs/screenshots/compare.png)
+
+### Sample intelligence
+
+Samples get a timbre fingerprint — MFCC statistics plus spectral shape
+descriptors — searchable by cosine similarity. MFCC coefficient 0 is
+deliberately dropped so matches track *timbre* rather than loudness: query a
+kick and you get the other kick at 100%, hats at 11–19%, a pad at 0%.
+
+![Sample intelligence](docs/screenshots/samples.png)
+
+### Agents
+
+Four agents (mixing, mastering, arrangement, session prep) run a logged
+multi-step pipeline — gather inputs, run the rule scan, compile a structured
+brief, then a charter-scoped AI pass that returns an executable plan. The
+deterministic steps always complete; only the final pass needs credentials.
+
+![Agents](docs/screenshots/agents.png)
+
+### Session rooms
+
+WebSocket rooms behind a shareable link. Analyses, project structure, comments,
+and presence sync live between everyone connected. Audio never crosses the
+wire — only measurements — and late joiners receive the full room state.
+
+![Session room](docs/screenshots/collab.png)
+
+### Ask Aurora
+
+Two chat modes. **Session** answers questions about your project and mix,
+grounded in the parsed structure and measured values ("which tracks have no
+processing?", "why does the low end feel crowded?"). **DSP code** is an
+audio-programming assistant: JUCE, VST3/AU plugin architecture, real-time-safe
+C++, and SIMD.
+
+---
 
 ## Stack
 
-- **Frontend**: React + TypeScript + Vite + Tailwind CSS, wavesurfer.js waveforms
-- **Backend**: FastAPI (Python), librosa + pyloudnorm + numpy for DSP,
-  Anthropic SDK for feedback
+| Layer | Choice |
+| --- | --- |
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS v4, wavesurfer.js |
+| Backend | FastAPI (Python 3.13), WebSockets |
+| DSP | librosa, pyloudnorm, numpy, soundfile |
+| AI | Anthropic SDK (`claude-opus-4-8`) |
+| Tests | pytest (92 tests), Playwright for screenshot capture |
+
+Aurora runs as two processes: a Vite dev server and a single FastAPI service
+that handles analysis, parsing, AI calls, and collaboration sockets.
+
+```
+frontend (5175) ──/api proxy──▶ backend (8001)
+                                   ├── analysis.py     DSP measurements
+                                   ├── arrangement.py  sections + energy
+                                   ├── findings.py     rule engine
+                                   ├── daw.py          .als / .rpp parsers
+                                   ├── plugins.py      device roles + chain rules
+                                   ├── samples.py      timbre fingerprints
+                                   ├── agents.py       multi-step pipelines
+                                   ├── ai.py           Claude prompts
+                                   └── collab.py       WebSocket rooms
+```
+
+---
 
 ## Running it
 
-Backend (port 8000):
+**Backend** (port 8001):
 
 ```sh
 cd backend
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn app.main:app --port 8000
+.venv/bin/uvicorn app.main:app --port 8001
 ```
 
-Frontend (port 5173, proxies `/api` to the backend):
+**Frontend** (port 5175, proxies `/api` and `/api/ws` to the backend):
 
 ```sh
 cd frontend
@@ -69,8 +139,70 @@ npm install
 npm run dev
 ```
 
-For AI feedback, export `ANTHROPIC_API_KEY` (or log in with `ant auth login`)
-before starting the backend. Without credentials, analysis and rule-based
-findings still work; the feedback button returns a clear error.
+### Configuration
 
-Model defaults to `claude-opus-4-8`; override with `AURORA_MODEL`.
+AI features call the Anthropic API. Export a key before starting the backend:
+
+```sh
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Without credentials the app still runs: analysis, parsing, rule-based findings,
+version comparison, sample search, and collaboration all work, and the AI
+surfaces return a clear "no credentials configured" message rather than
+failing. The model defaults to `claude-opus-4-8`; override with `AURORA_MODEL`.
+
+---
+
+## Tests
+
+```sh
+cd backend
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m pytest
+```
+
+92 tests, no binary fixtures — every audio file and project file used in the
+suite is synthesized at test time. Coverage is behavioral rather than
+line-oriented:
+
+- **DSP correctness against known signals.** A 0.25-amplitude sine must measure
+  −12 dBFS peak with a ~3 dB crest factor; inverted channels must correlate at
+  −1.0; band percentages must sum to 100.
+- **Rule engine.** Each finding is exercised in both directions — the condition
+  that trips it and the neighboring case that must stay silent (four clipped
+  samples aren't clipping; a mono file skips the phase rules).
+- **Parsers.** Structure, device naming, and clip counts for both formats, plus
+  the failure paths: bad XML, wrong format, a track with no FX chain must not
+  inherit the previous track's plugins.
+- **Chain rules.** A limiter last in the chain is clean, a limiter mid-chain is
+  not; reverb on three inserts is sprawl, reverb on three returns is correct.
+- **API contracts.** Validation and the documented degraded behavior when no
+  credentials are present.
+- **Collaboration.** Broadcast, presence counting, deduplication, room
+  isolation, state replay for late joiners, and malformed messages that must
+  not drop the socket.
+
+Screenshots in this README are captured by driving the real app in headless
+Chromium (`docs/` assets are regenerated, not hand-edited).
+
+---
+
+## Scope
+
+This started as a specification for a distributed "AI studio operating system"
+— Neo4j, Qdrant, Redis, Kubernetes, LangGraph orchestration, a JUCE code
+assistant, real-time multi-user collaboration. That is a multi-team product.
+
+What is here instead is the subset that genuinely runs end to end on one
+machine, built one feature at a time. Every capability in this README is
+implemented and tested; where the original design called for infrastructure
+that wouldn't earn its complexity at this scale, the honest version was built
+instead — file parsing rather than a graph database, in-process similarity
+search rather than a vector store, a single service rather than a cluster.
+
+The one thing Aurora deliberately does not claim: it reasons about
+*measurements and session structure*, not audio it has listened to, and it sees
+plugin names and chain order but not parameter values. The prompts say so
+explicitly, so the model qualifies its advice instead of inventing knob
+settings.
