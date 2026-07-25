@@ -26,6 +26,10 @@ _MAJOR = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2
 _MINOR = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
 _NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
+# Rate used for chroma/key analysis — librosa's own default, and the standard
+# working rate in the MIR literature for pitch-class features.
+KEY_ANALYSIS_SR = 22050
+
 
 def _db(x: float, floor: float = -120.0) -> float:
     if x <= 0:
@@ -52,6 +56,16 @@ def _load(data: bytes, filename: str) -> tuple[np.ndarray, int]:
 
 def _estimate_key(y: np.ndarray, sr: int) -> str | None:
     try:
+        # The CQT dominates the analysis budget and its cost scales with sample
+        # rate, but chroma only needs pitch content — the highest note in play
+        # is ~4 kHz, far below the 11 kHz Nyquist here. Measured identical key
+        # output at both rates for roughly half the time; tempo is deliberately
+        # *not* downsampled, where it does cost accuracy.
+        if sr > KEY_ANALYSIS_SR:
+            y = librosa.resample(
+                y, orig_sr=sr, target_sr=KEY_ANALYSIS_SR, res_type="polyphase"
+            )
+            sr = KEY_ANALYSIS_SR
         chroma = librosa.feature.chroma_cqt(y=y, sr=sr).mean(axis=1)
         best, best_score = None, -2.0
         for shift in range(12):

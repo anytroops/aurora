@@ -77,6 +77,31 @@ def test_analyze_returns_arrangement_alongside_metrics(clean_tone):
     assert set(arrangement) == {"energy_curve", "sections", "transitions"}
 
 
+def test_key_detection_is_invariant_to_sample_rate():
+    """Key analysis downsamples to 22.05 kHz for speed — it must not change the answer.
+
+    Chroma only needs pitch content (highest note in play is ~4 kHz), so the
+    22.05 kHz Nyquist is ample. This guards the optimization: if downsampling
+    ever starts altering results, this fails.
+    """
+    import librosa
+    import numpy as np
+
+    from app.analysis import KEY_ANALYSIS_SR, _estimate_key
+
+    for rate in (44100, 48000):
+        t = np.linspace(0, 20, rate * 20, endpoint=False)
+        # An A major triad: A, C#, E
+        sig = sum(
+            0.3 * np.sin(2 * np.pi * f * t) for f in (220.0, 277.2, 329.6)
+        ).astype("float32")
+
+        downsampled = librosa.resample(
+            sig, orig_sr=rate, target_sr=KEY_ANALYSIS_SR, res_type="polyphase"
+        )
+        assert _estimate_key(sig, rate) == _estimate_key(downsampled, KEY_ANALYSIS_SR)
+
+
 def test_undecodable_input_raises():
     with pytest.raises(Exception):
         analyze_audio(b"this is not audio", "fake.wav")
