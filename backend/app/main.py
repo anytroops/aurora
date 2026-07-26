@@ -1,4 +1,5 @@
 import asyncio
+import os
 from collections.abc import Callable
 
 import anthropic
@@ -47,6 +48,35 @@ class AgentRunRequest(BaseModel):
     tracks: list[dict] = []
 
 
+# Analysis peaks at roughly 50x the input size (decoded float arrays, CQT and
+# beat-tracking working sets), so an unbounded read is a denial-of-service
+# vector: a single large upload can exhaust the machine. Bound the input.
+MAX_AUDIO_UPLOAD_MB = int(os.environ.get("AURORA_MAX_AUDIO_MB", "100"))
+MAX_PROJECT_UPLOAD_MB = int(os.environ.get("AURORA_MAX_PROJECT_MB", "25"))
+_READ_CHUNK = 1 << 20
+
+
+async def _read_bounded(file: UploadFile, limit_mb: int) -> bytes:
+    """Read an upload in chunks, refusing anything over the limit."""
+    limit = limit_mb * 1024 * 1024
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := await file.read(_READ_CHUNK):
+        total += len(chunk)
+        if total > limit:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"'{file.filename}' exceeds the {limit_mb} MB upload limit. "
+                    "Bounce a shorter excerpt or raise AURORA_MAX_AUDIO_MB."
+                ),
+            )
+        chunks.append(chunk)
+    if not total:
+        raise HTTPException(status_code=400, detail="Empty file.")
+    return b"".join(chunks)
+
+
 def _call_ai(fn: Callable[[], dict]) -> dict:
     try:
         return fn()
@@ -80,9 +110,7 @@ async def collab_ws(websocket: WebSocket, room_id: str) -> None:
 
 @app.post("/api/analyze")
 async def analyze(file: UploadFile) -> dict:
-    data = await file.read()
-    if not data:
-        raise HTTPException(status_code=400, detail="Empty file.")
+    data = await _read_bounded(file, MAX_AUDIO_UPLOAD_MB)
     try:
         # librosa work is CPU-bound and takes seconds on a full song; run it off
         # the event loop so concurrent requests and collab sockets keep flowing.
@@ -103,9 +131,7 @@ async def analyze(file: UploadFile) -> dict:
 
 @app.post("/api/project")
 async def project(file: UploadFile) -> dict:
-    data = await file.read()
-    if not data:
-        raise HTTPException(status_code=400, detail="Empty file.")
+    data = await _read_bounded(file, MAX_PROJECT_UPLOAD_MB)
     try:
         project = await asyncio.to_thread(
             parse_project, data, file.filename or "project"
@@ -121,9 +147,7 @@ async def project(file: UploadFile) -> dict:
 
 @app.post("/api/sample")
 async def sample(file: UploadFile) -> dict:
-    data = await file.read()
-    if not data:
-        raise HTTPException(status_code=400, detail="Empty file.")
+    data = await _read_bounded(file, MAX_AUDIO_UPLOAD_MB)
     try:
         features = await asyncio.to_thread(
             sample_features, data, file.filename or "sample"

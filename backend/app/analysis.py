@@ -30,6 +30,12 @@ _NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 # working rate in the MIR literature for pitch-class features.
 KEY_ANALYSIS_SR = 22050
 
+# Spectral aggregates are streamed in blocks so peak memory doesn't scale with
+# track length. 256 frames keeps each block's spectrogram at roughly 2 MB.
+SPECTRUM_N_FFT = 4096
+SPECTRUM_HOP = 1024
+SPECTRUM_BLOCK_FRAMES = 256
+
 
 def _db(x: float, floor: float = -120.0) -> float:
     if x <= 0:
@@ -52,6 +58,45 @@ def _load(data: bytes, filename: str) -> tuple[np.ndarray, int]:
         if y.ndim == 1:
             y = y[np.newaxis, :]
         return y.T.astype("float32"), int(sr)
+
+
+def _spectral_profile(mono: np.ndarray, sr: int) -> tuple[np.ndarray, float]:
+    """Mean power per FFT bin and mean spectral centroid, in bounded memory.
+
+    A full-file STFT of a five-minute track allocates hundreds of megabytes, and
+    we only need two aggregates out of it. Consuming the spectrogram in
+    fixed-size blocks keeps the working set at a few MB regardless of track
+    length, and computes both aggregates in one pass instead of two.
+    """
+    n_fft, hop = SPECTRUM_N_FFT, SPECTRUM_HOP
+    freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
+    power_sum = np.zeros(n_fft // 2 + 1, dtype=np.float64)
+    centroid_sum = 0.0
+    frames = 0
+
+    def accumulate(mag: np.ndarray) -> None:
+        nonlocal centroid_sum, frames
+        power_sum[:] += (mag.astype(np.float64) ** 2).sum(axis=1)
+        totals = mag.sum(axis=0)
+        active = totals > 0
+        if active.any():
+            centroid_sum += float(((freqs @ mag[:, active]) / totals[active]).sum())
+        frames += mag.shape[1]
+
+    span = (SPECTRUM_BLOCK_FRAMES - 1) * hop + n_fft
+    for start in range(0, max(len(mono) - n_fft + 1, 1), SPECTRUM_BLOCK_FRAMES * hop):
+        block = mono[start : start + span]
+        if len(block) < n_fft:
+            break
+        accumulate(np.abs(librosa.stft(block, n_fft=n_fft, hop_length=hop, center=False)))
+
+    if frames == 0:
+        # Clip shorter than one FFT window — pad it, which is cheap at this size
+        accumulate(np.abs(librosa.stft(mono, n_fft=n_fft, hop_length=hop)))
+
+    if frames == 0:
+        return power_sum, 0.0
+    return power_sum / frames, centroid_sum / frames
 
 
 def _estimate_key(y: np.ndarray, sr: int) -> str | None:
@@ -133,19 +178,21 @@ def analyze_audio(data: bytes, filename: str) -> tuple[dict, dict]:
         side_rms = float(np.sqrt(np.mean(side**2)))
         if mid_rms > 0:
             stereo_width = round(side_rms / mid_rms, 3)
+        del left, right, mid, side
+
+    # Nothing below needs the interleaved stereo array; release it before the
+    # memory-hungry spectral, key, and tempo stages rather than after.
+    del y
 
     # Spectral balance: share of total power per band
-    stft = np.abs(librosa.stft(mono, n_fft=4096)) ** 2
-    freqs = librosa.fft_frequencies(sr=sr, n_fft=4096)
-    power_per_bin = stft.mean(axis=1)
+    power_per_bin, centroid = _spectral_profile(mono, sr)
+    freqs = librosa.fft_frequencies(sr=sr, n_fft=SPECTRUM_N_FFT)
     total_power = float(power_per_bin.sum()) or 1.0
     bands = {}
     for name, lo, hi in BANDS:
         hi = hi if hi is not None else sr / 2
         mask = (freqs >= lo) & (freqs < hi)
         bands[name] = round(100.0 * float(power_per_bin[mask].sum()) / total_power, 2)
-
-    centroid = float(librosa.feature.spectral_centroid(y=mono, sr=sr).mean())
 
     # Noise floor: 10th percentile of frame RMS
     frame_rms = librosa.feature.rms(y=mono)[0]

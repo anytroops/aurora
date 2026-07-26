@@ -164,7 +164,7 @@ cd backend
 .venv/bin/python -m pytest
 ```
 
-93 tests, no binary fixtures — every audio file and project file used in the
+113 tests, no binary fixtures — every audio file and project file used in the
 suite is synthesized at test time. Coverage is behavioral rather than
 line-oriented:
 
@@ -213,6 +213,46 @@ generate concurrent load — a single-user browser session never reveals it.
 than latency: when the loop is blocked, a competing request never gets
 scheduled at all, so its own measured latency stays deceptively small while the
 server serves nothing.
+
+### Where the time goes
+
+Profiling the same 5-minute song, per stage:
+
+| Stage | Before | After |
+| --- | --- | --- |
+| Key detection (chroma CQT) | 1608 ms (60%) | 882 ms |
+| Tempo (beat tracking) | 1132 ms | unchanged |
+| Arrangement (MFCC + segmentation) | 456 ms | unchanged |
+| Loudness, spectrum, centroid, RMS | ~700 ms | ~500 ms |
+
+Key detection dominated, and chroma features only need pitch content, so key
+analysis resamples to 22.05 kHz — librosa's own default and the standard MIR
+working rate. Key output is measured identical at both rates, and a test
+asserts that invariance so the optimization can't quietly start changing
+answers. Tempo was deliberately *not* downsampled: it shifted beat tracking by
+up to 3% (139.7 → 143.6 BPM against a true 140), which isn't worth 150 ms.
+
+### Memory: a 57x amplification factor
+
+Peak RSS while analyzing a 53 MB file was **3056 MB** — 57x the input. Per
+stage, on top of the decoded audio: full-file STFT +417 MB, spectral centroid
++664 MB, chroma CQT +576 MB, beat tracking +621 MB.
+
+The spectrum and centroid were two separate full-file STFTs, materialised whole
+to extract two aggregates. They now stream: the spectrogram is consumed in
+fixed-size blocks, computing both aggregates in one pass with a working set of
+a few MB regardless of track length. The streamed power spectrum matches the
+naive computation to within 0.008%, and the centroid matches librosa exactly at
+the same parameters (both asserted in `tests/test_spectral_streaming.py`, along
+with a scaling test that fails if the spectrogram is ever materialised whole
+again).
+
+That plus releasing the interleaved stereo array before the expensive stages
+brings peak to **2468 MB**. The remainder lives inside librosa's CQT and
+beat-tracking internals, which can't be chunked without reimplementing them —
+so the necessary complement is bounding the input: uploads are read in chunks
+against a configurable ceiling (`AURORA_MAX_AUDIO_MB`, default 100 MB) and
+rejected with `413` before any decoding is attempted.
 
 ---
 
