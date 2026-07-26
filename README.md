@@ -103,7 +103,7 @@ C++, and SIMD.
 | Backend | FastAPI (Python 3.13), WebSockets |
 | DSP | librosa, pyloudnorm, numpy, soundfile |
 | AI | Anthropic SDK (`claude-opus-4-8`) |
-| Tests | pytest (93 tests), Playwright for screenshots and the demo GIF |
+| Tests | pytest (113 tests), Playwright for screenshots and the demo GIF |
 
 Aurora runs as two processes: a Vite dev server and a single FastAPI service
 that handles analysis, parsing, AI calls, and collaboration sockets.
@@ -124,6 +124,19 @@ frontend (5175) ──/api proxy──▶ backend (8001)
 ---
 
 ## Running it
+
+### With Docker
+
+```sh
+docker compose up --build
+```
+
+Then open <http://localhost:8080>. The frontend is built to static files and
+served by nginx, which proxies `/api` (including the collaboration WebSocket) to
+the backend, so the browser sees a single origin. Set `ANTHROPIC_API_KEY` in
+your environment or a `.env` file to enable the AI features.
+
+### Locally
 
 **Backend** (port 8001):
 
@@ -184,6 +197,10 @@ line-oriented:
 - **Collaboration.** Broadcast, presence counting, deduplication, room
   isolation, state replay for late joiners, and malformed messages that must
   not drop the socket.
+- **Standards compliance.** The loudness chain is validated against the EBU
+  Tech 3341 test signals and their 0.1 LU tolerance — see below.
+- **Resource behavior.** Concurrency (CPU work must stay off the event loop),
+  memory (the spectrogram must not be materialised whole), and upload bounds.
 
 Screenshots and the demo GIF in this README are captured by driving the real
 app in headless Chromium (`docs/capture_screenshots.py`, `docs/capture_demo.py`)
@@ -253,6 +270,31 @@ beat-tracking internals, which can't be chunked without reimplementing them —
 so the necessary complement is bounding the input: uploads are read in chunks
 against a configurable ceiling (`AURORA_MAX_AUDIO_MB`, default 100 MB) and
 rejected with `413` before any decoding is attempted.
+
+---
+
+## Standards compliance: validating the loudness chain
+
+Reporting a number as "LUFS" is a claim about conforming to ITU-R BS.1770 and
+EBU R128, so the measurement chain is validated against the EBU's published
+compliance signals from Tech 3341 rather than trusted because a library is
+involved. `tests/test_loudness_compliance.py` generates each test signal and
+asserts the standard's 0.1 LU tolerance end to end — through WAV decoding and
+channel handling, not just the meter:
+
+| Case | Signal | Expected |
+| --- | --- | --- |
+| Identity | Stereo 1 kHz sine, −23 dBFS, 20 s | −23.0 LUFS |
+| Identity | Stereo 1 kHz sine, −33 dBFS, 20 s | −33.0 LUFS |
+| Relative gate | 10 s @ −36, 60 s @ −23, 10 s @ −36 dBFS | −23.0 LUFS |
+| Absolute gate | −72 / −36 / −23 / −36 / −72 dBFS passages | −23.0 LUFS |
+| Mixed level | 20 s @ −26, 20.1 s @ −20, 20 s @ −26 dBFS | −23.0 LUFS |
+
+Two properties get their own tests because they're the errors worth catching:
+channel energy must be **summed, not averaged** (the same signal in both
+channels reads +3.01 LU louder than one channel alone — averaging would read
+identical and look plausible), and digital silence must be reported as
+unmeasurable rather than as a number.
 
 ---
 
