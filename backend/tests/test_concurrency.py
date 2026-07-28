@@ -24,6 +24,8 @@ from app.main import app
 
 SR = 44100
 MIN_CONCURRENT_REQUESTS = 10
+# Generous for a contended CI runner, but bounded — see the guard below.
+ANALYSIS_DEADLINE_S = 90
 
 
 @pytest.fixture(scope="module")
@@ -54,8 +56,18 @@ def test_analysis_does_not_block_the_event_loop(long_song):
             task = asyncio.create_task(analyze())
             await asyncio.sleep(0.05)  # let the request get going
 
+            # httpx timeouts are not enforced over ASGITransport (there is no
+            # socket to time out), so this loop needs its own wall-clock guard
+            # or a stalled request would spin it forever.
+            deadline = time.perf_counter() + ANALYSIS_DEADLINE_S
             served = 0
             while not task.done():
+                if time.perf_counter() > deadline:
+                    task.cancel()
+                    pytest.fail(
+                        f"analysis did not finish within {ANALYSIS_DEADLINE_S}s "
+                        f"after {served} concurrent requests"
+                    )
                 r = await client.get("/api/health", timeout=60)
                 assert r.status_code == 200
                 served += 1
