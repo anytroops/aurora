@@ -316,3 +316,9 @@ The one thing Aurora deliberately does not claim: it reasons about
 plugin names and chain order but not parameter values. The prompts say so
 explicitly, so the model qualifies its advice instead of inventing knob
 settings.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
